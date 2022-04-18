@@ -22,10 +22,12 @@
     ],
     "require": {
         "php": "^8.0",
-        "illuminate/support": "^8.0"
+        "illuminate/support": "^9.0",
+        "league/flysystem-aws-s3-v3": "^3.0",
+        "ext-openssl": "*"
     },
     "require-dev": {
-        "orchestra/testbench": "^6.0",
+        "orchestra/testbench": "^7.0",
         "phpunit/phpunit": "^9.0"
     },
     "autoload": {

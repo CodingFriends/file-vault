@@ -6,6 +6,9 @@ use Exception;
 use Illuminate\Support\Str;
 use RuntimeException;
 
+/**
+ * Encrypts single files for file streams.
+ */
 class FileEncrypter
 {
     /**
@@ -19,25 +22,25 @@ class FileEncrypter
      *
      * @var string
      */
-    protected $key;
+    protected string $key;
 
     /**
      * The algorithm used for encryption.
      *
      * @var string
      */
-    protected $cipher;
+    protected string $cipher;
 
     /**
      * Create a new encrypter instance.
      *
-     * @param  string  $key
-     * @param  string  $cipher
+     * @param string $key The key to encrypt with
+     * @param string $cipher The cipher to encrypt with
      * @return void
      *
      * @throws \RuntimeException
      */
-    public function __construct($key, $cipher = 'AES-128-CBC')
+    public function __construct(string $key, string $cipher = 'AES-128-CBC')
     {
         // If the key starts with "base64:", we will need to decode the key before handing
         // it off to the encrypter. Keys may be base-64 encoded for presentation and we
@@ -57,11 +60,11 @@ class FileEncrypter
     /**
      * Determine if the given key and cipher combination is valid.
      *
-     * @param  string  $key
-     * @param  string  $cipher
+     * @param string $key
+     * @param string $cipher
      * @return bool
      */
-    public static function supported($key, $cipher)
+    public static function supported(string $key, string $cipher): bool
     {
         $length = mb_strlen($key, '8bit');
 
@@ -72,11 +75,12 @@ class FileEncrypter
     /**
      * Encrypts the source file and saves the result in a new file.
      *
-     * @param string $sourcePath  Path to file that should be encrypted
-     * @param string $destPath  File name where the encryped file should be written to.
+     * @param string $sourcePath Path to file that should be encrypted
+     * @param string $destPath File name where the encryped file should be written to.
      * @return bool
+     * @throws Exception On file in/out errors
      */
-    public function encrypt($sourcePath, $destPath)
+    public function encrypt(string $sourcePath, string $destPath): bool
     {
         $fpOut = $this->openDestFile($destPath);
         $fpIn = $this->openSourceFile($sourcePath);
@@ -118,11 +122,12 @@ class FileEncrypter
     /**
      * Decrypts the source file and saves the result in a new file.
      *
-     * @param string $sourcePath   Path to file that should be decrypted
-     * @param string $destPath  File name where the decryped file should be written to.
+     * @param string $sourcePath Path to file that should be decrypted
+     * @param string $destPath File name where the decryped file should be written to.
      * @return bool
+     * @throws Exception On file in/out error
      */
-    public function decrypt($sourcePath, $destPath)
+    public function decrypt(string $sourcePath, string $destPath): bool
     {
         $fpOut = $this->openDestFile($destPath);
         $fpIn = $this->openSourceFile($sourcePath);
@@ -165,7 +170,14 @@ class FileEncrypter
         return true;
     }
 
-    protected function openDestFile($destPath)
+    /**
+     * Opens the given destination file for writing.
+     *
+     * @param string $destPath The path of the destination file
+     * @return resource The open file handle
+     * @throws Exception On file read error
+     */
+    protected function openDestFile(string $destPath)
     {
         if (($fpOut = fopen($destPath, 'w')) === false) {
             throw new Exception('Cannot open file for writing');
@@ -174,6 +186,13 @@ class FileEncrypter
         return $fpOut;
     }
 
+    /**
+     * Opens the given source file for writing.
+     *
+     * @param $sourcePath
+     * @return resource
+     * @throws Exception On file read error
+     */
     protected function openSourceFile($sourcePath)
     {
         $contextOpts = Str::startsWith($sourcePath, 's3://') ? ['s3' => ['seekable' => true]] : [];

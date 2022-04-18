@@ -6,10 +6,11 @@
 
 With this package, you can encrypt and decrypt files of any size in your Laravel project. This package uses streams and [CBC encryption](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaining_(CBC)), encrypting / decrypting a segment of data at a time.
 
+This was originally forked from [Costin Soare's FileVault package](https://github.com/soarecostin) in order to support Laravel 9 and fix issues with S3 storages.
 
 ## Installation and usage
 
-This package requires PHP 8.0 and Laravel 8.0 or higher.  
+This package requires PHP 8.0 and Laravel 9.0 or higher.  
 
 You can install the package via composer:
 
@@ -17,10 +18,15 @@ You can install the package via composer:
 composer require coding-friends/file-vault
 ```
 
+Note:  
+This package supports S3 storage out-of-the-box and thus has a sub-dependency for `league/flysystem-aws-s3-v3`. Compare [Laravel Filesystem Documentation](https://laravel.com/docs/9.x/filesystem#s3-driver-configuration).
+
 ## Usage
 
 ### Description
-This package will automatically register a facade called `FileVault`. The `FileVault` facade is using the Laravel `Storage` and will allow you to specify a `disk`, just as you would normally do when working with Laravel Storage. All file names/paths that you will have to pass into the package encrypt/decrypt functions are relative to the disk root folder. By default, the `local` disk is used, but you can either specify a different disk each time you call one of `FileVault` methods, or you can set the default disk to something else, by publishing this package's config file.
+This package will automatically register a facade called `FileVault`. The `FileVault` facade is using the Laravel `Storage` and will allow you to specify a `disk`, just as you would normally do when working with [Laravel Storage](https://laravel.com/docs/9.x/filesystem). 
+
+All file names/paths that you will have to pass into the package encrypt/decrypt functions are relative to the disk root folder. By default, the `local` disk is used, but you can either specify a different disk each time you call one of `FileVault` methods, or you can set the default disk to something else, by publishing this package's config file.
 
 If you want to change the default `disk` or change the `key`/`cipher` used for encryption, you can publish the config file:
 
