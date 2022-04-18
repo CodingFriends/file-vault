@@ -1,11 +1,11 @@
 {
-    "name": "codingfriends/filevault",
+    "name": "codingfriends/file-vault",
     "description": "Wrapper for file and stream encryption in Laravel",
     "keywords": [
         "laravel", "encrypt", "decrypt", "encryption", "decryption",
         "php", "file", "stream", "file-vault"
     ],
-    "homepage": "https://github.com/codingfriends/filevault",
+    "homepage": "https://github.com/CodingFriends/file-vault",
     "license": "MIT",
     "type": "library",
     "authors": [
