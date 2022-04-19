@@ -17,6 +17,13 @@ class FileVault
     protected string $disk = 'local';
 
     /**
+     * The S3 bucket of the current disk, if it is an S3 store.
+     *
+     * @var ?string
+     */
+    protected ?string $s3Bucket = null;
+
+    /**
      * The encryption key.
      *
      * @var string
@@ -84,8 +91,12 @@ class FileVault
     /**
      * Encrypt the passed file and saves the result in a new file with ".enc" as suffix.
      *
-     * @param string $sourceFile Path to file that should be encrypted, relative to the storage disk specified
-     * @param string|null $destFile File name where the encryped file should be written to, relative to the storage disk specified
+     * If no `$destFile` parameter is provided, the source path will be used appending ".enc"
+     *
+     * @param string $sourceFile Path to file that should be encrypted,
+ *                              relative to the storage disk specified
+     * @param string|null $destFile File path where the encryped file should be written to,
+     *                          relative to the storage disk specified.
      * @return $this
      * @throws \Exception
      */
@@ -111,19 +122,23 @@ class FileVault
         return $this;
     }
 
+
     /**
      * Creates an encrypted copy of the given source file.
      *
+     * @param string $sourceFile The short path of the file to encrypt
+     * @param string|null $destFile The short path of the encrypted file
+     * @return $this
      * @throws \Exception
      */
-    public function encryptCopy($sourceFile, $destFile = null): static
+    public function encryptCopy(string $sourceFile, ?string $destFile = null): static
     {
         return self::encrypt($sourceFile, $destFile, false);
     }
 
     /**
-     * Dencrypt the passed file and saves the result in a new file, removing the
-     * last 4 characters from file name.
+     * Decrypt the passed file and saves the result in a new file, removing the
+     * ".enc" file extension.
      *
      * @param string $sourceFile Path to file that should be decrypted
      * @param string|null $destFile File name where the decryped file should be written to.
@@ -154,6 +169,11 @@ class FileVault
         return $this;
     }
 
+    /**
+     * Creates a decrypted copy of the given source file.
+     *
+     * @throws \Exception
+     */
     public function decryptCopy($sourceFile, $destFile = null)
     {
         return self::decrypt($sourceFile, $destFile, false);
@@ -179,16 +199,19 @@ class FileVault
     /**
      * Gets the absolute file path of the given (short) file path.
      *
-     * Proviide a bucket name to get an S3 file path like `s3://my-bucket/path/to/file`
+     * E.g.: When the disk is a S3 storage, a S3 file path like
+     * `s3://my-bucket/path/to/file` is returned
      *
      * @param string $file
-     * @param string|null $s3Bucket
      * @return string
      */
-    protected function filePath(string $file, ?string $s3Bucket = null): string
+    protected function filePath(string $file): string
     {
-        if (isset($s3Bucket)) {
-            return "s3://{$s3Bucket}/{$file}";
+        if ($this->adapter instanceof AwsS3V3Adapter) {
+            if (!isset($this->s3Bucket)) {
+                $this->registerServices();
+            }
+            return "s3://{$this->s3Bucket}/{$file}";
         }
 
         return Storage::disk($this->disk)->path($file);
@@ -202,15 +225,7 @@ class FileVault
      */
     protected function setAdapter(): void
     {
-        // `adapter` is a private property of Filesystem
-        // so we need to perform a sneak hack to access it
-        // by creating a closure and calling it with the
-        // filesystem as it's context
-        $getAdapter = function() {
-            return $this->adapter;
-        };
-        $filesystem = Storage::disk($this->disk);
-        $this->adapter = $getAdapter->call($filesystem);
+        $this->adapter = Storage::disk($this->disk)->getAdapter();
     }
 
     /**
@@ -228,18 +243,25 @@ class FileVault
             // we need to register the S3Client as a stream wrapper
             // https://aws.amazon.com/de/blogs/developer/amazon-s3-php-stream-wrapper/
 
+            $adapter = $this->adapter;
 
-            // `client` is a private property of AwsS3V3Adapter
+            // `client` and `bucket` are private properties of AwsS3V3Adapter
             // so we need to perform a sneaky hack to access it
             // by creating a closure and calling it with the
             // adapter as it's context
+
             $getClient = function() {
                 return $this->client;
             };
-            $adapter = $this->adapter;
             $client = $getClient->call($adapter);
 
             $client->registerStreamWrapper();
+
+            // now also get the bucket name
+            $getBucket = function() {
+                return $this->bucket;
+            };
+            $this->s3Bucket = $getBucket->call($adapter);
 
             // Note: If anybody knows a more elegant way to do this,
             // please open a PR on GitHub
