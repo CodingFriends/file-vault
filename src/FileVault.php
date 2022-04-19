@@ -33,9 +33,9 @@ class FileVault
     /**
      * The storage filesystem adapter.
      *
-     * @var FilesystemAdapter
+     * @var FilesystemAdapter|AwsS3V3Adapter
      */
-    protected FilesystemAdapter $adapter;
+    protected FilesystemAdapter|AwsS3V3Adapter $adapter;
 
     public function __construct()
     {
@@ -97,8 +97,8 @@ class FileVault
             $destFile = "{$sourceFile}.enc";
         }
 
-        $sourcePath = $this->getFilePath($sourceFile);
-        $destPath = $this->getFilePath($destFile);
+        $sourcePath = $this->filePath($sourceFile);
+        $destPath = $this->filePath($destFile);
 
         // Create a new encrypter instance
         $encrypter = new FileEncrypter($this->key, $this->cipher);
@@ -126,8 +126,9 @@ class FileVault
      * last 4 characters from file name.
      *
      * @param string $sourceFile Path to file that should be decrypted
-     * @param string|null $destFile   File name where the decryped file should be written to.
+     * @param string|null $destFile File name where the decryped file should be written to.
      * @return $this
+     * @throws \Exception
      */
     public function decrypt(string $sourceFile, string $destFile = null, $deleteSource = true)
     {
@@ -139,8 +140,8 @@ class FileVault
                         : $sourceFile.'.dec';
         }
 
-        $sourcePath = $this->getFilePath($sourceFile);
-        $destPath = $this->getFilePath($destFile);
+        $sourcePath = $this->filePath($sourceFile);
+        $destPath = $this->filePath($destFile);
 
         // Create a new encrypter instance
         $encrypter = new FileEncrypter($this->key, $this->cipher);
@@ -158,11 +159,16 @@ class FileVault
         return self::decrypt($sourceFile, $destFile, false);
     }
 
+    /**
+     * Decrypts the given source file as a stream.
+     *
+     * @throws \Exception
+     */
     public function streamDecrypt($sourceFile): bool
     {
         $this->registerServices();
 
-        $sourcePath = $this->getFilePath($sourceFile);
+        $sourcePath = $this->filePath($sourceFile);
 
         // Create a new encrypter instance
         $encrypter = new FileEncrypter($this->key, $this->cipher);
@@ -170,33 +176,41 @@ class FileVault
         return $encrypter->decrypt($sourcePath, 'php://output');
     }
 
-    protected function getFilePath($file): string
+    /**
+     * Gets the absolute file path of the given (short) file path.
+     *
+     * Proviide a bucket name to get an S3 file path like `s3://my-bucket/path/to/file`
+     *
+     * @param string $file
+     * @param string|null $s3Bucket
+     * @return string
+     */
+    protected function filePath(string $file, ?string $s3Bucket = null): string
     {
-        if ($this->isS3File()) {
-            return "s3://{$this->adapter->getBucket()}/{$file}";
+        if (isset($s3Bucket)) {
+            return "s3://{$s3Bucket}/{$file}";
         }
 
         return Storage::disk($this->disk)->path($file);
     }
 
-    /**
-     * Indicates if the storage adapter is an S3 adapter.
-     *
-     * @return bool `true` if S3
-     */
-    protected function isS3File(): bool
-    {
-        return $this->adapter instanceof AwsS3V3Adapter;
-    }
 
     /**
      * Sets the adapter to the current disk's adapter.
      *
      * @return void
      */
-    protected function setAdapter()
+    protected function setAdapter(): void
     {
-        $this->adapter = Storage::disk($this->disk)->getAdapter();
+        // `adapter` is a private property of Filesystem
+        // so we need to perform a sneak hack to access it
+        // by creating a closure and calling it with the
+        // filesystem as it's context
+        $getAdapter = function() {
+            return $this->adapter;
+        };
+        $filesystem = Storage::disk($this->disk);
+        $this->adapter = $getAdapter->call($filesystem);
     }
 
     /**
@@ -204,13 +218,32 @@ class FileVault
      *
      * @return void
      */
-    protected function registerServices()
+    protected function registerServices(): void
     {
+
         $this->setAdapter();
 
-        if ($this->isS3File()) {
-            $client = $this->adapter->getClient();
+        if ($this->adapter instanceof AwsS3V3Adapter) {
+            // In order to access S3 files using functions like fopen
+            // we need to register the S3Client as a stream wrapper
+            // https://aws.amazon.com/de/blogs/developer/amazon-s3-php-stream-wrapper/
+
+
+            // `client` is a private property of AwsS3V3Adapter
+            // so we need to perform a sneaky hack to access it
+            // by creating a closure and calling it with the
+            // adapter as it's context
+            $getClient = function() {
+                return $this->client;
+            };
+            $adapter = $this->adapter;
+            $client = $getClient->call($adapter);
+
             $client->registerStreamWrapper();
+
+            // Note: If anybody knows a more elegant way to do this,
+            // please open a PR on GitHub
         }
+
     }
 }
